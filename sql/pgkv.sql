@@ -262,15 +262,24 @@ $$ language 'plpgsql';
 --  select * from kvmsetnx(array['a', 'b', 'c'], array['apple', 'banana', 'cherry']);
 --   kvmsetnx
 --  ----------
---
+--   t
 --  (1 row)
-create or replace function kvmsetnx(keynames varchar[], valuestrings text[]) returns void as $$
+-- EXAMPLE 1:
+--  select * from kvmsetnx(array['a', 'd', 'e'], array['apricot', 'date', 'eggplant']);
+--   kvmsetnx
+--  ----------
+--   f
+--  (1 row)
+create or replace function kvmsetnx(keynames varchar[], valuestrings text[]) returns boolean as $$
 declare
+  result boolean := true;
   keyname varchar;
   i int := 1;
 begin
   perform key from keyval.strings where key = any(keynames) limit 1;
-  if not found then
+  if found then
+    result := false;
+  else
     foreach keyname in array keynames loop
       update keyval.strings set value = valuestrings[i], updated_at = now() where key = keyname;
       if not found then
@@ -279,6 +288,7 @@ begin
       i := i + 1;
     end loop;
   end if;
+  return result;
 end;
 $$ language 'plpgsql';
 
@@ -597,18 +607,28 @@ $$ language 'plpgsql';
 --  RTRN: void
 --
 -- EXAMPLE 1:
---  select * from kvmsetnx(array['a', 'b', 'c'], array['apple', 'banana', 'cherry']);
---   kvmsetnx
---  ----------
---
+--  select * from kvnmsetnx(array['a', 'b', 'c'], array[1, 2, 3]);
+--   kvnmsetnx
+--  -----------
+--   t
 --  (1 row)
-create or replace function kvnmsetnx(keynames varchar[], valuenumbers int[]) returns void as $$
+--
+-- EXAMPLE 2:
+--  select * from kvnmsetnx(array['a', 'd', 'e'], array[4, 5, 6]);
+--   kvnmsetnx
+--  -----------
+--   f
+--  (1 row)
+create or replace function kvnmsetnx(keynames varchar[], valuenumbers int[]) returns boolean as $$
 declare
+  result boolean := true;
   keyname varchar;
   i int := 1;
 begin
   perform key from keyval.numbers where key = any(keynames) limit 1;
-  if not found then
+  if found then
+    result := false;
+  else
     foreach keyname in array keynames loop
       update keyval.numbers set value = valuenumbers[i], updated_at = now() where key = keyname;
       if not found then
@@ -617,6 +637,7 @@ begin
       i := i + 1;
     end loop;
   end if;
+  return result;
 end;
 $$ language 'plpgsql';
 
@@ -890,7 +911,8 @@ $$ language 'plpgsql';
 --          If more keys then values are given, an error will be raised.
 --          If more values then keys are given, an error will be raised.
 --  ARG1: keynames varchar[]
---  ARG2: valuestrings text[]
+--  ARG2: fieldnames text[]
+--  ARG3: valuestrings text[]
 --  RTRN: void
 --
 -- EXAMPLE 1:
@@ -910,6 +932,53 @@ begin
     when others then
       raise exception 'The size of the "fieldnames" and "valuestrings" arguments must match!';
   end;
+end;
+$$ language 'plpgsql';
+
+-- KVHMSETNX: Sets all hash fields stored on the key to their respective string values,
+--            if all of the fields specified have not been set already.
+--            If any of the specified hash fields have already been set to a string value, this function will do nothing.
+--            For any keys that already hold a value, it will be overwritten instead.
+--            If more keys then values are given, an error will be raised.
+--            If more values then keys are given, an error will be raised.
+--  ARG1: keynames varchar[]
+--  ARG2: valuenumbers int[]
+--  RTRN: void
+--
+-- EXAMPLE 1:
+--  sselect * from kvhmsetnx('greeting', array['austin', 'brooklyn', 'tokyo'], array['howdy partner', 'hey buddy', 'moshi moshi']);
+--   kvhmsetnx
+--  -----------
+--   t
+--  (1 row)
+--
+-- EXAMPLE 2:
+--  select * from kvhmsetnx('greeting', array['austin', 'boston', 'san fran'], array['howdy partner', 'its cold', 'hello world']);
+--   kvhmsetnx
+--  -----------
+--   f
+--  (1 row)
+create or replace function kvhmsetnx(keyname varchar, fieldnames text[], valuestrings text[]) returns boolean as $$
+declare
+  result boolean := true;
+  canupdate boolean;
+begin
+  begin
+    select not (value ?| fieldnames) from keyval.hashes where key = keyname into canupdate;
+    if not found then
+      insert into keyval.hashes (key, value, created_at, updated_at) values (keyname, hstore(fieldnames, valuestrings), now(), now());
+    else
+      if canupdate then
+        update keyval.hashes set value = (value || hstore(fieldnames, valuestrings)), updated_at = now() where key = keyname;
+      else
+        result := false;
+      end if;
+    end if;
+  exception
+    when others then
+      raise exception 'The size of the "fieldnames" and "valuestrings" arguments must match!';
+  end;
+  return result;
 end;
 $$ language 'plpgsql';
 
@@ -993,3 +1062,7 @@ begin
   return query select svals(value) from keyval.hashes where keyval.hashes.key = keyname;
 end;
 $$ language 'plpgsql';
+
+-----------------------
+-- Start List Functions
+-----------------------

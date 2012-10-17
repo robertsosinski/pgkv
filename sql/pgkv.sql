@@ -256,7 +256,7 @@ $$ language 'plpgsql';
 --           If more values then keys are given, the extra values will be ignored.
 --  ARG1: keynames varchar[]
 --  ARG2: valuestrings text[]
---  RTRN: void
+--  RTRN: boolean
 --
 -- EXAMPLE 1:
 --  select * from kvmsetnx(array['a', 'b', 'c'], array['apple', 'banana', 'cherry']);
@@ -411,7 +411,7 @@ $$ language 'plpgsql';
 --            If no value was previously stored, NULL is returned instead.
 --  ARG1: keyname varchar
 --  ARG2: valuenumber int
---  RTRN: text
+--  RTRN: int
 --
 -- EXAMPLE 1:
 --  select * from kvgetset('abc', 3);
@@ -440,26 +440,26 @@ begin
 end;
 $$ language 'plpgsql';
 
--- KVINCRBY: Increments the value stored at the key by the number given.
---           If the key does not have a value, the number given becomes the new value instead.
+-- KVNINCRBY: Increments the value stored at the key by the number given.
+--            If the key does not have a value, the number given becomes the new value instead.
 --  ARG1: keyname varchar
 --  ARG2: valuenumber int
 --  RTRN: int
 --
 -- EXAMPLE 1:
---  select * from kvincrby('abc', 5);
---   kvincrby
---  ----------
---          5
+--  select * from kvnincrby('abc', 5);
+--   kvnincrby
+--  -----------
+--           5
 --  (1 row)
 --
 -- EXAMPLE 2:
---  select * from kvincrby('abc', 3);
---   kvincrby
---  ----------
---          8
+--  select * from kvnincrby('abc', 3);
+--   kvnincrby
+--  -----------
+--           8
 --  (1 row)
-create or replace function kvincrby(keyname varchar, valuenumber int) returns int as $$
+create or replace function kvnincrby(keyname varchar, valuenumber int) returns int as $$
 declare
   result int;
 begin
@@ -472,76 +472,76 @@ begin
 end;
 $$ language 'plpgsql';
 
--- KVINCR: Increments the value stored at the key by 1.
---           If the key does not have a value, the new value becomes 1 instead.
+-- KVNINCR: Increments the value stored at the key by 1.
+--          If the key does not have a value, the new value becomes 1 instead.
 --  ARG1: keyname varchar
 --  RTRN: int
 --
 -- EXAMPLE 1:
 --  select * from kvincr('abc');
---   kvincr
---  --------
---       9
+--   kvnincr
+--  ---------
+--        9
 --  (1 row)
 --
 -- EXAMPLE 2:
 --  select * from kvincr('nonexistent');
---   kvincr
---  --------
---        1
+--   kvnincr
+--  ---------
+--         1
 --  (1 row)
-create or replace function kvincr(keyname varchar) returns int as $$
+create or replace function kvnincr(keyname varchar) returns int as $$
 begin
-  return kvincrby(keyname, 1);
+  return kvnincrby(keyname, 1);
 end;
 $$ language 'plpgsql';
 
--- KVDECRBY: Decrements the value stored at the key by the number given.
---           If the key does not have a value, the number given becomes the new negative value instead.
+-- KVNDECRBY: Decrements the value stored at the key by the number given.
+--            If the key does not have a value, the number given becomes the new negative value instead.
 --  ARG1: keyname varchar
 --  ARG2: valuenumber int
 --  RTRN: int
 --
 -- EXAMPLE 1:
---  select * from kvdecrby('abc', 2);
---   kvdecrby
---  ----------
---         7
+--  select * from kvndecrby('abc', 2);
+--   kvndecrby
+--  -----------
+--           7
 --  (1 row)
 --
 -- EXAMPLE 2:
---  select * from kvdecrby('nonexistent', 3);
---   kvdecrby
---  ----------
---         -3
+--  select * from kvndecrby('nonexistent', 3);
+--   kvndecrby
+--  -----------
+--          -3
 --  (1 row)
-create or replace function kvdecrby(keyname varchar, valuenumber int) returns int as $$
+create or replace function kvndecrby(keyname varchar, valuenumber int) returns int as $$
 begin
-  return kvincrby(keyname, (valuenumber - (valuenumber * 2)));
+  return kvnincrby(keyname, (valuenumber - (valuenumber * 2)));
 end;
 $$ language 'plpgsql';
 
--- KVINCR: Decrements the value stored at the key by 1.
---         If the key does not have a value, the new value becomes -1 instead.
+-- KVNDECR: Decrements the value stored at the key by 1.
+--          If the key does not have a value, the new value becomes -1 instead.
 --  ARG1: keyname varchar
 --  RTRN: int
 --
 -- EXAMPLE 1:
---  select * from kvdecr('abc');
---   kvdecr
---  --------
---        6
+--  select * from kvndecr('abc');
+--   kvndecr
+--  ---------
+--         6
 --  (1 row)
 --
 -- EXAMPLE 2:
---  select * from kvdecr('nonexistent');
---   kvdecr
---  --------
---       -1
+--  select * from kvndecr('nonexistent');
+--   kvndecr
+--  ---------
+--        -1
 --  (1 row)
-create or replace function kvdecr(keyname varchar) returns int as $$
+create or replace function kvndecr(keyname varchar) returns int as $$
 begin
-  return kvdecrby(keyname, 1);
+  return kvndecrby(keyname, 1);
 end;
 $$ language 'plpgsql';
 
@@ -604,7 +604,7 @@ $$ language 'plpgsql';
 --            If more values then keys are given, the extra values will be ignored.
 --  ARG1: keynames varchar[]
 --  ARG2: valuenumbers int[]
---  RTRN: void
+--  RTRN: boolean
 --
 -- EXAMPLE 1:
 --  select * from kvnmsetnx(array['a', 'b', 'c'], array[1, 2, 3]);
@@ -941,12 +941,13 @@ $$ language 'plpgsql';
 --            For any keys that already hold a value, it will be overwritten instead.
 --            If more keys then values are given, an error will be raised.
 --            If more values then keys are given, an error will be raised.
---  ARG1: keynames varchar[]
---  ARG2: valuenumbers int[]
---  RTRN: void
+--  ARG1: keyname varchar
+--  ARG2: fieldnames text[]
+--  ARG3: valuestrings text[]
+--  RTRN: boolean
 --
 -- EXAMPLE 1:
---  sselect * from kvhmsetnx('greeting', array['austin', 'brooklyn', 'tokyo'], array['howdy partner', 'hey buddy', 'moshi moshi']);
+--  select * from kvhmsetnx('greeting', array['austin', 'brooklyn', 'tokyo'], array['howdy partner', 'hey buddy', 'moshi moshi']);
 --   kvhmsetnx
 --  -----------
 --   t

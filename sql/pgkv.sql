@@ -222,8 +222,8 @@ $$ language 'plpgsql';
 
 -- KVMSET: Sets all keys to their respective string values.
 --         For any keys that already hold a value, it will be overwritten instead.
---         If more keys then values are given, the extra values will be set to NULL.
---         If more values then keys are given, the extra values will be ignored.
+--         If more keys then values are given, an error will be raised.
+--         If more values then keys are given, an error will be raised.
 --  ARG1: keynames varchar[]
 --  ARG2: valuestrings text[]
 --  RTRN: void
@@ -239,21 +239,25 @@ declare
   keyname varchar;
   i int := 1;
 begin
-  foreach keyname in array keynames loop
-    update keyval.strings set value = valuestrings[i], updated_at = now() where key = keyname;
-    if not found then
-      insert into keyval.strings (key, value, created_at, updated_at) values (keyname, valuestrings[i], now(), now());
-    end if;
-    i := i + 1;
-  end loop;
+  if array_length(keynames, 1) = array_length(valuestrings, 1) then
+    foreach keyname in array keynames loop
+      update keyval.strings set value = valuestrings[i], updated_at = now() where key = keyname;
+      if not found then
+        insert into keyval.strings (key, value, created_at, updated_at) values (keyname, valuestrings[i], now(), now());
+      end if;
+      i := i + 1;
+    end loop;
+  else
+    raise exception 'The size of the "keynames" and "valuestrings" arguments must match!';
+  end if;
 end;
 $$ language 'plpgsql';
 
 -- KVMSETNX: Sets all keys to their respective string values, if all of the keys specified have not been set already.
 --           If any of the specified keys have already been set to a string value, this function will do nothing.
 --           For any keys that already hold a value, it will be overwritten instead.
---           If more keys then values are given, the extra values will be set to NULL.
---           If more values then keys are given, the extra values will be ignored.
+--           If more keys then values are given, an error will be raised.
+--           If more values then keys are given, an error will be raised.
 --  ARG1: keynames varchar[]
 --  ARG2: valuestrings text[]
 --  RTRN: boolean
@@ -276,17 +280,21 @@ declare
   keyname varchar;
   i int := 1;
 begin
-  perform key from keyval.strings where key = any(keynames) limit 1;
-  if found then
-    result := false;
+  if array_length(keynames, 1) = array_length(valuestrings, 1) then
+    perform key from keyval.strings where key = any(keynames) limit 1;
+    if found then
+      result := false;
+    else
+      foreach keyname in array keynames loop
+        update keyval.strings set value = valuestrings[i], updated_at = now() where key = keyname;
+        if not found then
+          insert into keyval.strings (key, value, created_at, updated_at) values (keyname, valuestrings[i], now(), now());
+        end if;
+        i := i + 1;
+      end loop;
+    end if;
   else
-    foreach keyname in array keynames loop
-      update keyval.strings set value = valuestrings[i], updated_at = now() where key = keyname;
-      if not found then
-        insert into keyval.strings (key, value, created_at, updated_at) values (keyname, valuestrings[i], now(), now());
-      end if;
-      i := i + 1;
-    end loop;
+    raise exception 'The size of the "keynames" and "valuestrings" arguments must match!';
   end if;
   return result;
 end;
@@ -481,7 +489,7 @@ $$ language 'plpgsql';
 --  select * from kvincr('abc');
 --   kvnincr
 --  ---------
---        9
+--         9
 --  (1 row)
 --
 -- EXAMPLE 2:
@@ -570,14 +578,14 @@ $$ language 'plpgsql';
 
 -- KVNMSET: Sets all keys to their respective number values.
 --          For any keys that already hold a value, it will be overwritten instead.
---          If more keys then values are given, the extra values will be set to NULL.
---          If more values then keys are given, the extra values will be ignored.
+--          If more keys then values are given, an error will be raised.
+--          If more values then keys are given, an error will be raised.
 --  ARG1: keynames varchar[]
 --  ARG2: valuenumbers int[]
 --  RTRN: void
 --
 -- EXAMPLE 1:
---  select * from kvmset(array['a', 'b', 'c'], array[1, 2, 3]);
+--  select * from kvnmset(array['a', 'b', 'c'], array[1, 2, 3]);
 --   kvnmset
 --  ---------
 --
@@ -587,21 +595,25 @@ declare
   keyname varchar;
   i int := 1;
 begin
-  foreach keyname in array keynames loop
-    update keyval.numbers set value = valuenumbers[i], updated_at = now() where key = keyname;
-    if not found then
-      insert into keyval.numbers (key, value, created_at, updated_at) values (keyname, valuenumbers[i], now(), now());
-    end if;
-    i := i + 1;
-  end loop;
+  if array_length(keynames, 1) = array_length(valuenumbers, 1) then
+    foreach keyname in array keynames loop
+      update keyval.numbers set value = valuenumbers[i], updated_at = now() where key = keyname;
+      if not found then
+        insert into keyval.numbers (key, value, created_at, updated_at) values (keyname, valuenumbers[i], now(), now());
+      end if;
+      i := i + 1;
+    end loop;
+  else
+    raise exception 'The size of the "keynames" and "valuenumbers" arguments must match!';
+  end if;
 end;
 $$ language 'plpgsql';
 
 -- KVNMSETNX: Sets all keys to their respective number values, if all of the keys specified have not been set already.
 --            If any of the specified keys have already been set to a number value, this function will do nothing.
 --            For any keys that already hold a value, it will be overwritten instead.
---            If more keys then values are given, the extra values will be set to NULL.
---            If more values then keys are given, the extra values will be ignored.
+--            If more keys then values are given, an error will be raised.
+--            If more values then keys are given, an error will be raised.
 --  ARG1: keynames varchar[]
 --  ARG2: valuenumbers int[]
 --  RTRN: boolean
@@ -625,17 +637,21 @@ declare
   keyname varchar;
   i int := 1;
 begin
-  perform key from keyval.numbers where key = any(keynames) limit 1;
-  if found then
-    result := false;
+  if array_length(keynames, 1) = array_length(valuenumbers, 1) then
+    perform key from keyval.numbers where key = any(keynames) limit 1;
+    if found then
+      result := false;
+    else
+      foreach keyname in array keynames loop
+        update keyval.numbers set value = valuenumbers[i], updated_at = now() where key = keyname;
+        if not found then
+          insert into keyval.numbers (key, value, created_at, updated_at) values (keyname, valuenumbers[i], now(), now());
+        end if;
+        i := i + 1;
+      end loop;
+    end if;
   else
-    foreach keyname in array keynames loop
-      update keyval.numbers set value = valuenumbers[i], updated_at = now() where key = keyname;
-      if not found then
-        insert into keyval.numbers (key, value, created_at, updated_at) values (keyname, valuenumbers[i], now(), now());
-      end if;
-      i := i + 1;
-    end loop;
+    raise exception 'The size of the "keynames" and "valuenumbers" arguments must match!';
   end if;
   return result;
 end;
@@ -649,8 +665,8 @@ $$ language 'plpgsql';
 --
 -- EXAMPLE 1:
 --  select * from kvnset('abc', 'hello world');
---   kvset
---  -------
+--   kvnset
+--  --------
 --
 --  (1 row)
 create or replace function kvnset(keyname varchar, valuestring int) returns void as $$
@@ -855,7 +871,7 @@ $$ language 'plpgsql';
 --  (0 rows)
 create or replace function kvhgetall(keyname varchar) returns table(key text, value text) as $$
 begin
-  return query select skeys(keyval.hashes.value), svals(keyval.hashes.value) from keyval.hashes where keyval.hashes.key = keyname;
+  return query select skeys(hashes.value), svals(hashes.value) from keyval.hashes where hashes.key = keyname;
 end;
 $$ language 'plpgsql';
 
@@ -917,8 +933,8 @@ $$ language 'plpgsql';
 --
 -- EXAMPLE 1:
 --  select * from kvhmset('greeting', array['austin', 'brooklyn', 'tokyo'], array['howdy partner', 'hey buddy', 'moshi moshi']);
---   kvmset
---  --------
+--   kvhmset
+--  ---------
 --
 --  (1 row)
 create or replace function kvhmset(keyname varchar, fieldnames text[], valuestrings text[]) returns void as $$
@@ -928,9 +944,8 @@ begin
     if not found then
       insert into keyval.hashes (key, value, created_at, updated_at) values (keyname, hstore(fieldnames, valuestrings), now(), now());
     end if;
-  exception
-    when others then
-      raise exception 'The size of the "fieldnames" and "valuestrings" arguments must match!';
+  exception when array_subscript_error then
+    raise exception 'The size of the "fieldnames" and "valuestrings" arguments must match!';
   end;
 end;
 $$ language 'plpgsql';
@@ -975,9 +990,8 @@ begin
         result := false;
       end if;
     end if;
-  exception
-    when others then
-      raise exception 'The size of the "fieldnames" and "valuestrings" arguments must match!';
+  exception when array_subscript_error then
+    raise exception 'The size of the "fieldnames" and "valuestrings" arguments must match!';
   end;
   return result;
 end;
@@ -991,7 +1005,7 @@ $$ language 'plpgsql';
 --  RTRN: void
 --
 -- EXAMPLE 1:
---  select * from kvset('abc', 'greeting', 'hello world');
+--  select * from kvhset('abc', 'greeting', 'hello world');
 --   kvhset
 --  --------
 --

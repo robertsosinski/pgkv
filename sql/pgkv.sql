@@ -31,7 +31,7 @@ create unlogged table keyval.hashes (
   updated_at timestamp
 );
 
--- create they key/value table for lists
+-- create the key/value table for lists
 create unlogged table keyval.lists (
   key varchar primary key,
   value text[],
@@ -104,6 +104,29 @@ begin
     result := true;
   end if;
   return result;
+end;
+$$ language 'plpgsql';
+
+-- KVDELE: Deletes the string value held by the key.
+--         If the key does not exist, an error is raised instead.
+--  ARG1: keyname varchar
+--  RTRN: void
+--
+-- EXAMPLE 1:
+--  select * from kvdele('abc');
+--   kvdele
+--  --------
+--
+--  (1 row)
+--
+-- EXAMPLE 2:
+--  select * from kvdele('nonexistent');
+--  ERROR:  The keyname provided does not exists!
+create or replace function kvdele(keyname varchar) returns void as $$
+begin
+  if not kvdel(keyname) then
+    raise exception 'The keyname provided does not exist!';
+  end if;
 end;
 $$ language 'plpgsql';
 
@@ -221,7 +244,7 @@ end;
 $$ language 'plpgsql';
 
 -- KVMSET: Sets all keys to their respective string values.
---         For any keys that already hold a value, it will be overwritten instead.
+--         For any keys that already hold a value, they will be overwritten instead.
 --         If more keys then values are given, an error will be raised.
 --         If more values then keys are given, an error will be raised.
 --  ARG1: keynames varchar[]
@@ -253,9 +276,8 @@ begin
 end;
 $$ language 'plpgsql';
 
--- KVMSETNX: Sets all keys to their respective string values, if all of the keys specified have not been set already.
---           If any of the specified keys have already been set to a string value, this function will do nothing.
---           For any keys that already hold a value, it will be overwritten instead.
+-- KVMSETNX: Sets all keys to their respective string values, if all of the keys specified have not been set already and returns TRUE.
+--           If any of the specified keys have already been set to a string value, this function will do nothing and return FALSE.
 --           If more keys then values are given, an error will be raised.
 --           If more values then keys are given, an error will be raised.
 --  ARG1: keynames varchar[]
@@ -297,6 +319,31 @@ begin
     raise exception 'The size of the "keynames" and "valuestrings" arguments must match!';
   end if;
   return result;
+end;
+$$ language 'plpgsql';
+
+-- KVMSETNXE: Sets all keys to their respective string values, if all of the keys specified have not been set already.
+--            If any of the specified keys have already been set to a string value, this function will do nothing and raise an error.
+--            If more keys then values are given, an error will be raised.
+--            If more values then keys are given, an error will be raised.
+--  ARG1: keynames varchar[]
+--  ARG2: valuestrings text[]
+--  RTRN: void
+--
+-- EXAMPLE 1:
+--  select * from kvmsetnx(array['a', 'b', 'c'], array['apple', 'banana', 'cherry']);
+--   kvmsetnxe
+--  -----------
+--
+--  (1 row)
+-- EXAMPLE 1:
+--  select * from kvmsetnx(array['a', 'd', 'e'], array['apricot', 'date', 'eggplant']);
+--  ERROR:  One or more of the keynames provided already exist!
+create or replace function kvmsetnxe(keynames varchar[], valuestrings text[]) returns void as $$
+begin
+  if not kvmsetnx(keynames, valuestrings) then
+    raise exception 'One or more of the keynames provided already exist!';
+  end if;
 end;
 $$ language 'plpgsql';
 
@@ -353,6 +400,30 @@ begin
 end;
 $$ language 'plpgsql';
 
+-- KVSETNXE: Sets the key to hold a string value, if the key does not exist.
+--           If the key already has a value set, no change is made and an raise an error.
+--  ARG1: keyname varchar
+--  ARG2: valuestring text
+--  RTRN: boolean
+--
+-- EXAMPLE 1:
+--  select * from kvsetnx('abc', 'hello world');
+--   kvsetnxe
+--  ----------
+--
+--  (1 row)
+--
+-- EXAMPLE 2:
+--  select * from kvsetnx('abc', 'howdy partner');
+--  ERROR:  The keyname provided already exists!
+create or replace function kvsetnxe(keyname varchar, valuestring text) returns void as $$
+begin
+  if not kvsetnx(keyname, valuestring) then
+    raise exception 'The keyname provided already exists!';
+  end if;
+end;
+$$ language 'plpgsql';
+
 -------------------------
 -- Start Number Functions
 -------------------------
@@ -360,7 +431,7 @@ $$ language 'plpgsql';
 -- KVNDEL: Deletes the number value held by the key and returns TRUE.
 --         If the key does not exist, FALSE is returned instead.
 --  ARG1: keyname varchar
---  RTRN: boolean
+--  RTRN: void
 --
 -- EXAMPLE 1:
 --  select * from kvndel('abc');
@@ -385,6 +456,29 @@ begin
     result := true;
   end if;
   return result;
+end;
+$$ language 'plpgsql';
+
+-- KVNDELE: Deletes the number value held by the key.
+--          If the key does not exist, an error is raised instead.
+--  ARG1: keyname varchar
+--  RTRN: void
+--
+-- EXAMPLE 1:
+--  select * from kvdele('abc');
+--   kvndele
+--  ---------
+--
+--  (1 row)
+--
+-- EXAMPLE 2:
+--  select * from kvndele('nonexistent');
+--  ERROR:  The keyname provided does not exists!
+create or replace function kvndele(keyname varchar) returns void as $$
+begin
+  if not kvndel(keyname) then
+    raise exception 'The keyname provided does not exist!';
+  end if;
 end;
 $$ language 'plpgsql';
 
@@ -577,7 +671,7 @@ end;
 $$ language 'plpgsql';
 
 -- KVNMSET: Sets all keys to their respective number values.
---          For any keys that already hold a value, it will be overwritten instead.
+--          For any keys that already hold a value, they will be overwritten instead.
 --          If more keys then values are given, an error will be raised.
 --          If more values then keys are given, an error will be raised.
 --  ARG1: keynames varchar[]
@@ -609,9 +703,8 @@ begin
 end;
 $$ language 'plpgsql';
 
--- KVNMSETNX: Sets all keys to their respective number values, if all of the keys specified have not been set already.
---            If any of the specified keys have already been set to a number value, this function will do nothing.
---            For any keys that already hold a value, it will be overwritten instead.
+-- KVNMSETNX: Sets all keys to their respective number values, if all of the keys specified have not been set already and returns TRUE.
+--            If any of the specified keys have already been set to a number value, this function will do nothing and return FALSE.
 --            If more keys then values are given, an error will be raised.
 --            If more values then keys are given, an error will be raised.
 --  ARG1: keynames varchar[]
@@ -654,6 +747,32 @@ begin
     raise exception 'The size of the "keynames" and "valuenumbers" arguments must match!';
   end if;
   return result;
+end;
+$$ language 'plpgsql';
+
+-- KVNMSETNX: Sets all keys to their respective number values, if all of the keys specified have not been set already.
+--            If any of the specified keys have already been set to a number value, this function will do nothing and raise an error.
+--            If more keys then values are given, an error will be raised.
+--            If more values then keys are given, an error will be raised.
+--  ARG1: keynames varchar[]
+--  ARG2: valuenumbers int[]
+--  RTRN: void
+--
+-- EXAMPLE 1:
+--  select * from kvnmsetnxe(array['a', 'b', 'c'], array[1, 2, 3]);
+--   kvnmsetnxe
+--  ------------
+--
+--  (1 row)
+--
+-- EXAMPLE 2:
+--  select * from kvnmsetnxe(array['a', 'd', 'e'], array[4, 5, 6]);
+--  ERROR:  One or more of the keynames provided already exist!
+create or replace function kvnmsetnxe(keynames varchar[], valuenumbers int[]) returns void as $$
+begin
+  if not kvnmsetnx(keynames, valuenumbers) then
+    raise exception 'One or more of the keynames provided already exist!';
+  end if;
 end;
 $$ language 'plpgsql';
 
@@ -710,6 +829,30 @@ begin
 end;
 $$ language 'plpgsql';
 
+-- KVNSETNXE: Sets the key to hold a number value, if the key does not exist.
+--            If the key already has a value set, no change is made and an raise an error.
+--  ARG1: keyname varchar
+--  ARG2: valuenumber int
+--  RTRN: boolean
+--
+-- EXAMPLE 1:
+--  select * from kvnsetnx('abc', 3);
+--   kvnsetnx
+--  ----------
+--
+--  (1 row)
+--
+-- EXAMPLE 2:
+--  select * from kvnsetnx('abc', 7);
+--  ERROR: The keyname provided already exists!
+create or replace function kvnsetnxe(keyname varchar, valuenumber int) returns void as $$
+begin
+  if not kvnsetnx(keyname, valuenumber) then
+    raise exception 'The keyname provided already exists!';
+  end if;
+end;
+$$ language 'plpgsql';
+
 -----------------------
 -- Start Hash Functions
 -----------------------
@@ -754,6 +897,29 @@ begin
 end;
 $$ language 'plpgsql';
 
+-- KVHDELE: Deletes the string value held by hash field stored at the key.
+--         If the hash field or the key does not exist, an error is raised instead.
+--  ARG1: keyname varchar
+--  RTRN: void
+--
+-- EXAMPLE 1:
+--  select * from kvhdele('abc');
+--   kvhdele
+--  --------
+--
+--  (1 row)
+--
+-- EXAMPLE 2:
+--  select * from kvhdele('nonexistent');
+--  ERROR:  The keyname or fieldname provided does not exists!
+create or replace function kvhdele(keyname varchar, fieldname text) returns void as $$
+begin
+  if not kvhdel(keyname) then
+    raise exception 'The keyname or fieldname provided does not exist!';
+  end if;
+end;
+$$ language 'plpgsql';
+
 -- KVDELALL: Deletes all hash fields stored at the key and returns TRUE.
 --           If the key does not exist, FALSE is returned instead.
 --  ARG1: keyname varchar
@@ -785,6 +951,29 @@ begin
 end;
 $$ language 'plpgsql';
 
+-- KVDELALLE: Deletes all hash fields stored at the key.
+--            If the key does not exist, an error is raised instead.
+--  ARG1: keyname varchar
+--  RTRN: boolean
+--
+-- EXAMPLE 1:
+--  select * from kvhdelalle('abc');
+--   kvhdelalle
+--  ------------
+--
+--  (1 row)
+--
+-- EXAMPLE 2:
+--  select * from kvhdelalle('nonexistent');
+--  ERROR:  The keyname provided does not exist!
+create or replace function kvhdelalle(keyname varchar) returns void as $$
+begin
+  if not kvhdelall(keyname) then
+    raise exception 'The keyname provided does not exist!';
+  end if;
+end;
+$$ language 'plpgsql';
+
 -- KVHEXIST: Returns TRUE if the hash field at the key has a value.
 --           If the field or the key does not exist, FALSE is returned instead.
 --  ARG1: keyname varchar
@@ -792,14 +981,14 @@ $$ language 'plpgsql';
 --  RTRN: boolean
 --
 -- EXAMPLE 1:
---  select * from kvhget('greeting', 'austin');
+--  select * from kvhexists('greeting', 'austin');
 --   kvhexists
 --  -----------
 --   t
 --  (1 row)
 --
 -- EXAMPLE 1:
---  select * from kvhget('greeting', 'nonexistent');
+--  select * from kvhexists('greeting', 'nonexistent');
 --   kvhexists
 --  -----------
 --   f
@@ -813,6 +1002,30 @@ begin
     result := false;
   end if;
   return result;
+end;
+$$ language 'plpgsql';
+
+-- KVHEXISTE: Returns nothing if the hash field at the key has a value.
+--            If the field or the key does not exist, an error is raised instead.
+--  ARG1: keyname varchar
+--  ARG2: fieldname text
+--  RTRN: void
+--
+-- EXAMPLE 1:
+--  select * from kvhexistse('greeting', 'austin');
+--   kvhexistse
+--  -----------
+--
+--  (1 row)
+--
+-- EXAMPLE 1:
+--  select * from kvhexistse('greeting', 'nonexistent');
+--  ERROR:  The keyname or fieldname provided does not exist!
+create or replace function kvhexistse(keyname varchar, fieldname text) returns void as $$
+begin
+  if not kvhexists(keyname, fieldname) then
+    raise exception 'The keyname or fieldname provided does not exist!';
+  end if;
 end;
 $$ language 'plpgsql';
 
@@ -923,7 +1136,7 @@ end;
 $$ language 'plpgsql';
 
 -- KVHMSET: Sets all hash fields stored at the key to their respective string values.
---          For any hash fields that already hold a value, it will be overwritten instead.
+--          For any hash fields that already hold a value, they will be overwritten instead.
 --          If more keys then values are given, an error will be raised.
 --          If more values then keys are given, an error will be raised.
 --  ARG1: keynames varchar[]
@@ -951,9 +1164,8 @@ end;
 $$ language 'plpgsql';
 
 -- KVHMSETNX: Sets all hash fields stored on the key to their respective string values,
---            if all of the fields specified have not been set already.
---            If any of the specified hash fields have already been set to a string value, this function will do nothing.
---            For any keys that already hold a value, it will be overwritten instead.
+--              if all of the fields specified have not been set already and returns TRUE.
+--            If any of the specified hash fields have already been set to a string value, this function will do nothing and return FALSE.
 --            If more keys then values are given, an error will be raised.
 --            If more values then keys are given, an error will be raised.
 --  ARG1: keyname varchar
@@ -994,6 +1206,34 @@ begin
     raise exception 'The size of the "fieldnames" and "valuestrings" arguments must match!';
   end;
   return result;
+end;
+$$ language 'plpgsql';
+
+-- KVHMSETNXE: Sets all hash fields stored on the key to their respective string values,
+--               if all of the fields specified have not been set already.
+--             If any of the specified hash fields have already been set to a string value, this function will do nothing and raise an error.
+--             If more keys then values are given, an error will be raised.
+--             If more values then keys are given, an error will be raised.
+--  ARG1: keyname varchar
+--  ARG2: fieldnames text[]
+--  ARG3: valuestrings text[]
+--  RTRN: void
+--
+-- EXAMPLE 1:
+--  select * from kvhmsetnxe('greeting', array['austin', 'brooklyn', 'tokyo'], array['howdy partner', 'hey buddy', 'moshi moshi']);
+--   kvhmsetnxe
+--  ------------
+--
+--  (1 row)
+--
+-- EXAMPLE 2:
+--  select * from kvhmsetnxe('greeting', array['austin', 'boston', 'san fran'], array['howdy partner', 'its cold', 'hello world']);
+--  ERROR:  One or more of the keynames or fieldnames provided already exist!
+create or replace function kvhmsetnxe(keyname varchar, fieldnames text[], valuestrings text[]) returns void as $$
+begin
+  if not kvhmsetnx(keyname, fieldnames, valuestrings) then
+    raise exception 'One or more of the keynames or fieldnames provided already exist!';
+  end if;
 end;
 $$ language 'plpgsql';
 
@@ -1051,6 +1291,30 @@ begin
     end if;
   end;
   return result;
+end;
+$$ language 'plpgsql';
+
+-- KVHSETNXE: Sets the hash field stored at the key to hold a string value, if the key does not exist, and returns TRUE.
+--            If the hash field already has a value set, no change is made and FALSE is returned instead.
+--  ARG1: keyname varchar
+--  ARG2: valuestring text
+--  RTRN: boolean
+--
+-- EXAMPLE 1:
+--  select * from kvhsetnxe('greeting', 'tokyo', 'moshi moshi')
+--   kvhsetnxe
+--  -----------
+--
+--  (1 row)
+--
+-- EXAMPLE 2:
+--  select * from kvhsetnxe('greeting', 'tokyo', 'ohayo')
+--  ERROR:  The keyname or fieldname provided does not exist!
+create or replace function kvhsetnxe(keyname varchar, fieldname text, valuestring text) returns void as $$
+begin
+  if not kvhsetnx(keyname, fieldname, valuestring) then
+    raise exception 'The keyname or fieldname provided already exists!';
+  end if;
 end;
 $$ language 'plpgsql';
 

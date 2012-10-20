@@ -1064,6 +1064,40 @@ begin
 end;
 $$ language 'plpgsql';
 
+-- KVHGETSET: Sets the hash field at the key to hold a string value and returns the old value stored.
+--            If no value was previously stored, NULL is returned instead.
+--  ARG1: keyname varchar
+--  ARG2: fieldname text
+--  ARG3: valuestring text
+--  RTRN: text
+--
+-- EXAMPLE 1:
+--  select * from kvhgetset('abc', 'greeting', 'hello world');
+--   kvhgetset
+--  -----------
+--
+--  (1 row)
+--
+-- EXAMPLE 2:
+--  select * from kvhgetset('abc', 'greeting', 'howdy partner');
+--    kvhgetset
+--  -------------
+--   hello world
+--  (1 row)
+create or replace function kvhgetset(keyname varchar, fieldname text, valuestring text) returns text as $$
+declare
+  result text;
+begin
+  select (value -> fieldname) from keyval.hashes where key = keyname into result;
+  if found then
+    update keyval.hashes set value = (value || hstore(fieldname, valuestring)), updated_at = now() where key = keyname;
+  else
+    insert into keyval.hashes (key, value, created_at, updated_at) values (keyname, hstore(fieldname, valuestring), now(), now());
+  end if;
+  return result;
+end;
+$$ language 'plpgsql';
+
 -- KVHKEYS: Returns a list of hash field names and field values stored by the key.
 --  ARG1: keyname varchar
 --  RTRN: table(key, value)

@@ -836,15 +836,15 @@ $$ language 'plpgsql';
 --  RTRN: boolean
 --
 -- EXAMPLE 1:
---  select * from kvnsetnx('abc', 3);
---   kvnsetnx
---  ----------
+--  select * from kvnsetnxe('abc', 3);
+--   kvnsetnxe
+--  -----------
 --
 --  (1 row)
 --
 -- EXAMPLE 2:
---  select * from kvnsetnx('abc', 7);
---  ERROR: The keyname provided already exists!
+--  select * from kvnsetnxe('abc', 7);
+--  ERROR:  The keyname provided already exists!
 create or replace function kvnsetnxe(keyname varchar, valuenumber int) returns void as $$
 begin
   if not kvnsetnx(keyname, valuenumber) then

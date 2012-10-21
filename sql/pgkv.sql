@@ -6,7 +6,7 @@
 create schema keyval;
 
 -- create the key/value table for strings
-create unlogged table keyval.strings (
+create table keyval.strings (
   key varchar primary key,
   value text,
   created_at timestamp,
@@ -14,9 +14,17 @@ create unlogged table keyval.strings (
 );
 
 -- create the key/value table for numbers
-create unlogged table keyval.numbers (
+create table keyval.numbers (
   key varchar primary key,
   value int not null default 0,
+  created_at timestamp,
+  updated_at timestamp
+);
+
+-- create the key/value table for lists
+create table keyval.lists (
+  key varchar primary key,
+  value text[],
   created_at timestamp,
   updated_at timestamp
 );
@@ -24,17 +32,9 @@ create unlogged table keyval.numbers (
 -- create the key/value table for hashes
 create extension hstore;
 
-create unlogged table keyval.hashes (
+create table keyval.hashes (
   key varchar primary key,
   value hstore,
-  created_at timestamp,
-  updated_at timestamp
-);
-
--- create the key/value table for lists
-create unlogged table keyval.lists (
-  key varchar primary key,
-  value text[],
   created_at timestamp,
   updated_at timestamp
 );
@@ -336,7 +336,8 @@ $$ language 'plpgsql';
 --  -----------
 --
 --  (1 row)
--- EXAMPLE 1:
+--
+-- EXAMPLE 2:
 --  select * from kvmsetnx(array['a', 'd', 'e'], array['apricot', 'date', 'eggplant']);
 --  ERROR:  One or more of the keynames provided already exist!
 create or replace function kvmsetnxe(keynames varchar[], valuestrings text[]) returns void as $$
@@ -414,7 +415,7 @@ $$ language 'plpgsql';
 --  (1 row)
 --
 -- EXAMPLE 2:
---  select * from kvsetnx('abc', 'howdy partner');
+--  select * from kvsetnxe('abc', 'howdy partner');
 --  ERROR:  The keyname provided already exists!
 create or replace function kvsetnxe(keyname varchar, valuestring text) returns void as $$
 begin
@@ -854,6 +855,137 @@ end;
 $$ language 'plpgsql';
 
 -----------------------
+-- Start List Functions
+-----------------------
+
+kvldel(keyname varchar) returns boolean
+kvldele(keyname varchar) returns void
+
+kvlindex(keyname varchar, valuestring text) returns int
+kvlinsert(keyname varchar, valuestring text, listindex int) returns void
+kvllen(keyname varchar) returns int
+
+kvlget(keyname varchar, listindex int) returns text
+kvlgetall(keyname varchar) returns text
+kvlgetrange(keyname varchar, lowerindex int, upperindex int) returns table (index int, value text)
+
+create or replace function kvllpop(keyname varchar) returns text as $$
+declare
+  length int;
+  result text;
+begin
+  update keyval.lists set value = lists.value[1:(array_length(lists.value, 1) - 1)], updated_at = now()
+    from keyval.lists temp
+    where lists.key = temp.key
+      and lists.key = keyname
+    returning array_length(temp.value, 1), temp.value[array_length(temp.value, 1)] into length, result;
+  if not found then
+    result := null;
+  end if;
+
+  if length <= 1 then
+    delete from keyval.lists where key = keyname;
+  end if;
+
+  return result;
+end;
+$$ language 'plpgsql';
+
+create or replace function kvllpope(keyname varchar) returns text as $$
+declare
+  result text;
+begin
+  select kvllpop(keyname) into result;
+  if result is null then
+    raise exception 'The keyname provided does not exist!';
+  end if;
+  return result;
+end;
+$$ language 'plpgsql';
+
+create or replace function kvllpush(keyname varchar, valuestring text) returns int as $$
+declare
+  result int;
+begin
+  update keyval.lists set value = (value || valuestring), updated_at = now() where key = keyname returning array_length(value, 1) into result;
+  if not found then
+    insert into keyval.lists (key, value, created_at, updated_at) values (keyname, array[valuestring], now(), now());
+    result := 1;
+  end if;
+  return result;
+end;
+$$ language 'plpgsql';
+
+create or replace function kvllpushnx(keyname varchar, valuestring text) returns boolean as $$
+declare
+  result boolean := true;
+begin
+  begin
+    insert into keyval.lists (key, value, created_at, updated_at) values (keyname, array[valuestring], now(), now());
+  exception when unique_violation then
+    update keyval.lists set value = (value || valuestring), updated_at = now() where key = keyname and not value @> array[valuestring];
+    if not found then
+      result := false;
+    end if;
+  end;
+  return result;
+end;
+$$ language 'plpgsql';
+
+create or replace function kvllpushnxe(keyname varchar, valuestring text) returns void as $$
+begin
+  if not kvllpushnx(keyname, valuestring) then
+    raise exception 'The valuestring provided already exists in the list at that keyname';
+  end if;
+end;
+$$ language 'plpgsql';
+
+create or replace function kvlrpop(keyname varchar) returns text as $$
+declare
+  length int;
+  result text;
+begin
+  update keyval.lists set value = lists.value[2:(array_length(lists.value, 1))], updated_at = now()
+    from keyval.lists temp
+    where lists.key = temp.key
+      and lists.key = keyname
+    returning array_length(temp.value, 1), temp.value[1] into length, result;
+  if not found then
+    result := null;
+  end if;
+
+  if length <= 1 then
+    delete from keyval.lists where key = keyname;
+  end if;
+
+  return result;
+end;
+$$ language 'plpgsql';
+
+create or replace function kvlrpope(keyname varchar) returns text as $$
+declare
+  result text;
+begin
+  select kvlrpop(keyname) into result;
+  if result is null then
+    raise exception 'The keyname provided does not exist!';
+  end if;
+  return result;
+end;
+$$ language 'plpgsql';
+
+kvlrpush(keyname varchar, valuestring text) returns int
+kvlrpushnx(keyname varchar, valuestring text) returns boolean
+kvlrpushnxe(keyname varchar, valuestring text) returns void
+
+kvlreml(keyname varchar, valuestring text) returns boolean
+kvlremle(keyname varchar, valuestring text) returns void
+kvlremr(keyname varchar, valuestring text) returns boolean
+kvlremre(keyname varchar, valuestring text) returns void
+kvlremall(keyname varchar, valuestring text) returns boolean
+kvlremalle(keyname varchar, valuestring text) returns void
+
+-----------------------
 -- Start Hash Functions
 -----------------------
 
@@ -920,8 +1052,8 @@ begin
 end;
 $$ language 'plpgsql';
 
--- KVDELALL: Deletes all hash fields stored at the key and returns TRUE.
---           If the key does not exist, FALSE is returned instead.
+-- KVHDELALL: Deletes all hash fields stored at the key and returns TRUE.
+--            If the key does not exist, FALSE is returned instead.
 --  ARG1: keyname varchar
 --  RTRN: boolean
 --
@@ -1100,11 +1232,11 @@ $$ language 'plpgsql';
 
 -- KVHKEYS: Returns a list of hash field names and field values stored by the key.
 --  ARG1: keyname varchar
---  RTRN: table(key, value)
+--  RTRN: table(name, value)
 --
 -- EXAMPLE 1:
 --  select * from kvhgetall('greeting');
---     key    |     value
+--     name   |     value
 --  ----------+---------------
 --   austin   | howdy partner
 --   tokyo    | moshi moshi
@@ -1116,19 +1248,19 @@ $$ language 'plpgsql';
 --   value
 --  -------
 --  (0 rows)
-create or replace function kvhgetall(keyname varchar) returns table(key text, value text) as $$
+create or replace function kvhgetall(keyname varchar) returns table(name text, value text) as $$
 begin
   return query select skeys(hashes.value), svals(hashes.value) from keyval.hashes where hashes.key = keyname;
 end;
 $$ language 'plpgsql';
 
--- KVHKEYS: Returns a list of hash field names stored by the key.
+-- KVHNAMES: Returns a list of hash field names stored by the key.
 --  ARG1: keyname varchar
 --  RTRN: table(key)
 --
 -- EXAMPLE 1:
---  select * from kvhkeys('greeting');
---     key
+--  select * from kvhnames('greeting');
+--     name
 --  ----------
 --   austin
 --   tokyo
@@ -1136,13 +1268,13 @@ $$ language 'plpgsql';
 --  (3 rows)
 --
 -- EXAMPLE 2:
---  select * from kvhvals('nonexistent');
---   value
+--  select * from kvhnames('nonexistent');
+--   name
 --  -------
 --  (0 rows)
-create or replace function kvhkeys(keyname varchar) returns table(key text) as $$
+create or replace function kvhnames(keyname varchar) returns table(name text) as $$
 begin
-  return query select skeys(value) from keyval.hashes where keyval.hashes.key = keyname;
+  return query select skeys(value) from keyval.hashes where hashes.key = keyname;
 end;
 $$ language 'plpgsql';
 
@@ -1150,22 +1282,22 @@ $$ language 'plpgsql';
 --          For any field names specified that do not have a string value, NULL is returned instead.
 --  ARG1: keyname varchar
 --  ARG2: fieldnames text[]
---  RTRN: table(key, value)
+--  RTRN: table(name, value)
 --
 -- EXAMPLE 1:
 --  select * from kvhmget('greeting', array['austin', 'nonexistent', 'brooklyn']);
---       key     |     value
+--       name    |     value
 --  -------------+---------------
 --   austin      | howdy partner
 --   nonexistent | <NULL>
 --   brooklyn    | hey buddy
 --   (3 rows)
-create or replace function kvhmget(keyname varchar, fieldnames text[]) returns table(key text, value text) as $$
+create or replace function kvhmget(keyname varchar, fieldnames text[]) returns table(name text, value text) as $$
 begin
   return query with
-    pairs as (select skeys(keyval.hashes.value), svals(keyval.hashes.value) from keyval.hashes where keyval.hashes.key = keyname),
-    keys as (select unnest(fieldnames))
-    select unnest, svals from keys left outer join pairs on pairs.skeys = keys.unnest;
+    pairs as (select skeys(hashes.value), svals(hashes.value) from keyval.hashes where hashes.key = keyname),
+    names as (select unnest(fieldnames))
+    select unnest, svals from names left outer join pairs on pairs.skeys = names.unnest;
 end;
 $$ language 'plpgsql';
 
@@ -1266,7 +1398,96 @@ $$ language 'plpgsql';
 create or replace function kvhmsetnxe(keyname varchar, fieldnames text[], valuestrings text[]) returns void as $$
 begin
   if not kvhmsetnx(keyname, fieldnames, valuestrings) then
-    raise exception 'One or more of the keynames or fieldnames provided already exist!';
+    raise exception 'One or more or fieldnames provided already exist at that keyname!';
+  end if;
+end;
+$$ language 'plpgsql';
+
+-- KVHREPLACE: Replaces the hash fields stored at the key with the specified string values.
+--             Any hash fields previously stored will be erased.
+--             If more keys then values are given, an error will be raised.
+--             If more values then keys are given, an error will be raised.
+--  ARG1: keynames varchar[]
+--  ARG2: fieldnames text[]
+--  ARG3: valuestrings text[]
+--  RTRN: void
+--
+-- EXAMPLE 1:
+--  select * from kvhreplace('greeting', array['austin', 'brooklyn', 'tokyo'], array['howdy partner', 'hey buddy', 'moshi moshi']);
+--   kvhreplace
+--  ------------
+--
+--  (1 row)
+create or replace function kvhreplace(keyname varchar, fieldnames text[], valuestrings text[]) returns void as $$
+begin
+  begin
+    update keyval.hashes set value = hstore(fieldnames, valuestrings), updated_at = now() where key = keyname;
+    if not found then
+      insert into keyval.hashes (key, value, created_at, updated_at) values (keyname, hstore(fieldnames, valuestrings), now(), now());
+    end if;
+  exception when array_subscript_error then
+    raise exception 'The size of the "fieldnames" and "valuestrings" arguments must match!';
+  end;
+end;
+$$ language 'plpgsql';
+
+-- KVHREPLACENX: Replaces the hash fields stored at the key with the specified string values and returns TRUE.
+--               If the key already has hash fields set, no change is made and FALSE is returned instead.
+--               If more keys then values are given, an error will be raised.
+--               If more values then keys are given, an error will be raised.
+--  ARG1: keynames varchar[]
+--  ARG2: fieldnames text[]
+--  ARG3: valuestrings text[]
+--  RTRN: boolean
+--
+-- EXAMPLE 1:
+--  select * from kvreplacenx('greeting', array['austin', 'brooklyn', 'tokyo'], array['howdy partner', 'hey buddy', 'moshi moshi']);
+--   kvreplacenx
+--  -------------
+--   t
+--  (1 row)
+-- EXAMPLE 1:
+--  select * from kvreplacenx('greeting', array['austin', 'brooklyn', 'tokyo'], array['howdy partner', 'hey buddy', 'moshi moshi']);
+--   kvreplacenx
+--  -------------
+--   f
+--  (1 row)
+create or replace function kvhreplacenx(keyname varchar, fieldnames text[], valuestrings text[]) returns boolean as $$
+declare
+  result boolean := true;
+begin
+  begin
+    insert into keyval.hashes (key, value, created_at, updated_at) values (keyname, hstore(fieldnames, valuestrings), now(), now());
+  exception when unique_violation then
+    result := false;
+  end;
+  return result;
+end;
+$$ language 'plpgsql';
+
+-- KVHREPLACENXE: Replaces the hash fields stored at the key with the specified string values.
+--                If the key already has hash fields set, no change is made and an error raised instead.
+--                If more keys then values are given, an error will be raised.
+--                If more values then keys are given, an error will be raised.
+--  ARG1: keynames varchar[]
+--  ARG2: fieldnames text[]
+--  ARG3: valuestrings text[]
+--  RTRN: void
+--
+-- EXAMPLE 1:
+--  select * from kvreplacenxe('greeting', array['austin', 'brooklyn', 'tokyo'], array['howdy partner', 'hey buddy', 'moshi moshi']);
+--   kvreplacenx
+--  -------------
+--
+--  (1 row)
+--
+-- EXAMPLE 2:
+--  select * from kvreplacenxe('greeting', array['austin', 'brooklyn', 'tokyo'], array['howdy partner', 'hey buddy', 'moshi moshi']);
+--  ERROR:  The keyname provided already exists!
+create or replace function kvhreplacenxe(keyname varchar, fieldnames text[], valuestrings text[]) returns void as $$
+begin
+  if not kvhreplacenx(keyname, fieldnames, valuestrings) then
+    raise exception 'The keyname provided already exists!';
   end if;
 end;
 $$ language 'plpgsql';
@@ -1293,21 +1514,21 @@ begin
 end;
 $$ language 'plpgsql';
 
--- KVHSETNX: Sets the hash field stored at the key to hold a string value, if the key does not exist, and returns TRUE.
+-- KVHSETNX: Sets the hash field stored at the key to hold a string value, if the hash field does not exist, and returns TRUE.
 --           If the hash field already has a value set, no change is made and FALSE is returned instead.
 --  ARG1: keyname varchar
 --  ARG2: valuestring text
 --  RTRN: boolean
 --
 -- EXAMPLE 1:
---  select * from kvhsetnx('greeting', 'tokyo', 'moshi moshi')
+--  select * from kvhsetnx('greeting', 'tokyo', 'moshi moshi');
 --   kvhsetnx
 --  ----------
 --   t
 --  (1 row)
 --
 -- EXAMPLE 2:
---  select * from kvhsetnx('greeting', 'tokyo', 'ohayo')
+--  select * from kvhsetnx('greeting', 'tokyo', 'ohayo');
 --   kvhsetnx
 --  ----------
 --   f
@@ -1319,7 +1540,7 @@ begin
   begin
     insert into keyval.hashes (key, value, created_at, updated_at) values (keyname, hstore(fieldname, valuestring), now(), now());
   exception when unique_violation then
-    update keyval.hashes set value = (value || hstore(fieldname, valuestring)) where key = keyname and value ? fieldname = false;
+    update keyval.hashes set value = (value || hstore(fieldname, valuestring)), updated_at = now() where key = keyname and not value ? fieldname;
     if not found then
       result := false;
     end if;
@@ -1328,26 +1549,26 @@ begin
 end;
 $$ language 'plpgsql';
 
--- KVHSETNXE: Sets the hash field stored at the key to hold a string value, if the key does not exist, and returns TRUE.
+-- KVHSETNXE: Sets the hash field stored at the key to hold a string value, if the hash field does not exist, and returns TRUE.
 --            If the hash field already has a value set, no change is made and FALSE is returned instead.
 --  ARG1: keyname varchar
 --  ARG2: valuestring text
 --  RTRN: boolean
 --
 -- EXAMPLE 1:
---  select * from kvhsetnxe('greeting', 'tokyo', 'moshi moshi')
+--  select * from kvhsetnxe('greeting', 'tokyo', 'moshi moshi');
 --   kvhsetnxe
 --  -----------
 --
 --  (1 row)
 --
 -- EXAMPLE 2:
---  select * from kvhsetnxe('greeting', 'tokyo', 'ohayo')
+--  select * from kvhsetnxe('greeting', 'tokyo', 'ohayo');
 --  ERROR:  The keyname or fieldname provided does not exist!
 create or replace function kvhsetnxe(keyname varchar, fieldname text, valuestring text) returns void as $$
 begin
   if not kvhsetnx(keyname, fieldname, valuestring) then
-    raise exception 'The keyname or fieldname provided already exists!';
+    raise exception 'The fieldname provided already exists at that keyname!';
   end if;
 end;
 $$ language 'plpgsql';
@@ -1375,7 +1596,3 @@ begin
   return query select svals(value) from keyval.hashes where keyval.hashes.key = keyname;
 end;
 $$ language 'plpgsql';
-
------------------------
--- Start List Functions
------------------------

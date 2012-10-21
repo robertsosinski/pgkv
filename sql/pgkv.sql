@@ -277,7 +277,7 @@ end;
 $$ language 'plpgsql';
 
 -- KVMSETNX: Sets all keys to their respective string values, if all of the keys specified have not been set already and returns TRUE.
---           If any of the specified keys have already been set to a string value, this function will do nothing and return FALSE.
+--           If any of the specified keys have already been set to a string value, this function will do nothing and return FALSE instead.
 --           If more keys then values are given, an error will be raised.
 --           If more values then keys are given, an error will be raised.
 --  ARG1: keynames varchar[]
@@ -705,7 +705,7 @@ end;
 $$ language 'plpgsql';
 
 -- KVNMSETNX: Sets all keys to their respective number values, if all of the keys specified have not been set already and returns TRUE.
---            If any of the specified keys have already been set to a number value, this function will do nothing and return FALSE.
+--            If any of the specified keys have already been set to a number value, this function will do nothing and return FALSE instead.
 --            If more keys then values are given, an error will be raised.
 --            If more values then keys are given, an error will be raised.
 --  ARG1: keynames varchar[]
@@ -869,6 +869,24 @@ kvlget(keyname varchar, listindex int) returns text
 kvlgetall(keyname varchar) returns text
 kvlgetrange(keyname varchar, lowerindex int, upperindex int) returns table (index int, value text)
 
+-- KVLLPOP: Removes and returns the first string value from the list.
+--          If nothing is stored at the key, NULL is returned instead.
+--  ARG1: keyname varchar
+--  RTRN: text
+--
+-- EXAMPLE 1:
+--  select * from kvllpop('abc');
+--    kvllpop
+--  ------------
+--   last value
+--  (1 row)
+--
+-- EXAMPLE 2:
+--  select * from kvllpop('abc');
+--   kvllpop
+--  ---------
+--   <NULL>
+--  (1 row)
 create or replace function kvllpop(keyname varchar) returns text as $$
 declare
   isempty boolean;
@@ -891,6 +909,21 @@ begin
 end;
 $$ language 'plpgsql';
 
+-- KVLLPOPE: Removes and returns the first string value from the list.
+--           If nothing is stored at the key, an error is raised instead.
+--  ARG1: keyname varchar
+--  RTRN: text
+--
+-- EXAMPLE 1:
+--  select * from kvllpope('abc');
+--    kvllpope
+--  ------------
+--   last value
+--  (1 row)
+--
+-- EXAMPLE 2:
+--  select * from kvllpope('abc');
+--  ERROR:  The keyname provided does not exist!
 create or replace function kvllpope(keyname varchar) returns text as $$
 declare
   result text;
@@ -903,6 +936,25 @@ begin
 end;
 $$ language 'plpgsql';
 
+-- KVLLPUSH: Inserts a new string value at the begining of the list, and returns the lengh of the new list.
+--           If nothing is stored at the key, a new list is created with the specified value and 1 will be returned.
+--  ARG1: keyname varchar
+--  ARG2: valuestring text
+--  RTRN: int
+--
+-- EXAMPLE 1:
+--  select * from kvllpush('abc', 'one');
+--   kvllpush
+--  ----------
+--          1
+--  (1 row)
+--
+-- EXAMPLE 2:
+--  select * from kvllpush('abc', 'two');
+--   kvllpush
+--  ----------
+--          2
+--  (1 row)
 create or replace function kvllpush(keyname varchar, valuestring text) returns int as $$
 declare
   result int;
@@ -916,6 +968,26 @@ begin
 end;
 $$ language 'plpgsql';
 
+-- KVLLPUSHNX: Inserts a new string value at the begining of the list, if the string value does not yet exist and returns TRUE.
+--             If the string value already exists in the list, this function will do nothing and return FALSE instead.
+--             If nothing is stored at the key, a new list is created with the specified value and TRUE will be returned.
+--  ARG1: keyname varchar
+--  ARG2: valuestring text
+--  RTRN: boolean
+--
+-- EXAMPLE 1:
+--  select * from kvllpushnx('abc', 'one');
+--   kvllpushnx
+--  ------------
+--            t
+--  (1 row)
+--
+-- EXAMPLE 2:
+--  select * from kvllpushnx('abc', 'one');
+--   kvllpushnx
+--  ------------
+--            f
+--  (1 row)
 create or replace function kvllpushnx(keyname varchar, valuestring text) returns boolean as $$
 declare
   result boolean := true;
@@ -932,6 +1004,23 @@ begin
 end;
 $$ language 'plpgsql';
 
+-- KVLLPUSHNXE: Inserts a new string value at the begining of the list, if the string value does not yet exist.
+--              If the string value already exists in the list, this function will do nothing and raise an error instead.
+--              If nothing is stored at the key, a new list is created with the specified value.
+--  ARG1: keyname varchar
+--  ARG2: valuestring text
+--  RTRN: void
+--
+-- EXAMPLE 1:
+--  select * from kvllpushnxe('abc', 'one');
+--   kvllpushnxe
+--  -------------
+--             t
+--  (1 row)
+--
+-- EXAMPLE 2:
+--  select * from kvllpushnxe('abc', 'one');
+--  ERROR:  The valuestring provided already exists in the list at that keyname!
 create or replace function kvllpushnxe(keyname varchar, valuestring text) returns void as $$
 begin
   if not kvllpushnx(keyname, valuestring) then
@@ -940,6 +1029,24 @@ begin
 end;
 $$ language 'plpgsql';
 
+-- KVLRPOP: Removes and returns the last string value from the list.
+--          If nothing is stored at the key, NULL is returned instead.
+--  ARG1: keyname varchar
+--  RTRN: text
+--
+-- EXAMPLE 1:
+--  select * from kvlrpop('abc');
+--    kvlrpop
+--  ------------
+--   last value
+--  (1 row)
+--
+-- EXAMPLE 2:
+--  select * from kvlrpop('abc');
+--   kvlrpop
+--  ---------
+--   <NULL>
+--  (1 row)
 create or replace function kvlrpop(keyname varchar) returns text as $$
 declare
   isempty boolean;
@@ -962,6 +1069,21 @@ begin
 end;
 $$ language 'plpgsql';
 
+-- KVLRPOPE: Removes and returns the first string value from the list.
+--           If nothing is stored at the key, an error is raised instead.
+--  ARG1: keyname varchar
+--  RTRN: text
+--
+-- EXAMPLE 1:
+--  select * from kvlrpope('abc');
+--    kvlrpope
+--  ------------
+--   last value
+--  (1 row)
+--
+-- EXAMPLE 2:
+--  select * from kvlrpope('abc');
+--  ERROR:  The keyname provided does not exist!
 create or replace function kvlrpope(keyname varchar) returns text as $$
 declare
   result text;
@@ -974,6 +1096,25 @@ begin
 end;
 $$ language 'plpgsql';
 
+-- KVLRPUSH: Inserts a new string value at the end of the list, and returns the lengh of the new list.
+--           If nothing is stored at the key, a new list is created with the specified value and 1 will be returned.
+--  ARG1: keyname varchar
+--  ARG2: valuestring text
+--  RTRN: int
+--
+-- EXAMPLE 1:
+--  select * from kvlrpush('abc', 'one');
+--   kvlrpush
+--  ----------
+--          1
+--  (1 row)
+--
+-- EXAMPLE 2:
+--  select * from kvlrpush('abc', 'two');
+--   kvlrpush
+--  ----------
+--          2
+--  (1 row)
 create or replace function kvlrpush(keyname varchar, valuestring text) returns int as $$
 declare
   result int;
@@ -987,6 +1128,26 @@ begin
 end;
 $$ language 'plpgsql';
 
+-- KVLRPUSHNX: Inserts a new string value at the end of the list, if the string value does not yet exist and returns TRUE.
+--             If the string value already exists in the list, this function will do nothing and return FALSE instead.
+--             If nothing is stored at the key, a new list is created with the specified value and TRUE will be returned.
+--  ARG1: keyname varchar
+--  ARG2: valuestring text
+--  RTRN: boolean
+--
+-- EXAMPLE 1:
+--  select * from kvlrpushnx('abc', 'one');
+--   kvlrpushnx
+--  ------------
+--            t
+--  (1 row)
+--
+-- EXAMPLE 2:
+--  select * from kvlrpushnx('abc', 'one');
+--   kvlrpushnx
+--  ------------
+--            f
+--  (1 row)
 create or replace function kvlrpushnx(keyname varchar, valuestring text) returns boolean as $$
 declare
   result boolean := true;
@@ -1003,6 +1164,23 @@ begin
 end;
 $$ language 'plpgsql';
 
+-- KVLRPUSHNXE: Inserts a new string value at the end of the list, if the string value does not yet exist.
+--              If the string value already exists in the list, this function will do nothing and raise an error instead.
+--              If nothing is stored at the key, a new list is created with the specified value.
+--  ARG1: keyname varchar
+--  ARG2: valuestring text
+--  RTRN: void
+--
+-- EXAMPLE 1:
+--  select * from kvlrpushnxe('abc', 'one');
+--   kvlrpushnxe
+--  -------------
+--             t
+--  (1 row)
+--
+-- EXAMPLE 2:
+--  select * from kvlrpushnxe('abc', 'one');
+--  ERROR:  The valuestring provided already exists in the list at that keyname!
 create or replace function kvlrpushnxe(keyname varchar, valuestring text) returns void as $$
 begin
   if not kvlrpushnx(keyname, valuestring) then
@@ -1364,7 +1542,7 @@ $$ language 'plpgsql';
 
 -- KVHMSETNX: Sets all hash fields stored on the key to their respective string values,
 --              if all of the fields specified have not been set already and returns TRUE.
---            If any of the specified hash fields have already been set to a string value, this function will do nothing and return FALSE.
+--            If any of the specified hash fields have already been set to a string value, this function will do nothing and return FALSE instead.
 --            If more keys then values are given, an error will be raised.
 --            If more values then keys are given, an error will be raised.
 --  ARG1: keyname varchar

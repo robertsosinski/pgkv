@@ -871,19 +871,19 @@ kvlgetrange(keyname varchar, lowerindex int, upperindex int) returns table (inde
 
 create or replace function kvllpop(keyname varchar) returns text as $$
 declare
-  length int;
+  isempty boolean;
   result text;
 begin
-  update keyval.lists set value = lists.value[1:(array_length(lists.value, 1) - 1)], updated_at = now()
+  update keyval.lists set value = lists.value[2:(array_length(lists.value, 1))], updated_at = now()
     from keyval.lists temp
     where lists.key = temp.key
       and lists.key = keyname
-    returning array_length(temp.value, 1), temp.value[array_length(temp.value, 1)] into length, result;
+    returning array_length(lists.value, 1) is null, temp.value[1] into isempty, result;
   if not found then
     result := null;
   end if;
 
-  if length <= 1 then
+  if isempty then
     delete from keyval.lists where key = keyname;
   end if;
 
@@ -907,7 +907,7 @@ create or replace function kvllpush(keyname varchar, valuestring text) returns i
 declare
   result int;
 begin
-  update keyval.lists set value = (value || valuestring), updated_at = now() where key = keyname returning array_length(value, 1) into result;
+  update keyval.lists set value = (valuestring || value), updated_at = now() where key = keyname returning array_length(value, 1) into result;
   if not found then
     insert into keyval.lists (key, value, created_at, updated_at) values (keyname, array[valuestring], now(), now());
     result := 1;
@@ -923,7 +923,7 @@ begin
   begin
     insert into keyval.lists (key, value, created_at, updated_at) values (keyname, array[valuestring], now(), now());
   exception when unique_violation then
-    update keyval.lists set value = (value || valuestring), updated_at = now() where key = keyname and not value @> array[valuestring];
+    update keyval.lists set value = (valuestring || value), updated_at = now() where key = keyname and not value @> array[valuestring];
     if not found then
       result := false;
     end if;
@@ -942,19 +942,19 @@ $$ language 'plpgsql';
 
 create or replace function kvlrpop(keyname varchar) returns text as $$
 declare
-  length int;
+  isempty boolean;
   result text;
 begin
-  update keyval.lists set value = lists.value[2:(array_length(lists.value, 1))], updated_at = now()
+  update keyval.lists set value = lists.value[1:(array_length(lists.value, 1) - 1)], updated_at = now()
     from keyval.lists temp
     where lists.key = temp.key
       and lists.key = keyname
-    returning array_length(temp.value, 1), temp.value[1] into length, result;
+    returning array_length(lists.value, 1) is null, temp.value[array_length(temp.value, 1)] into isempty, result;
   if not found then
     result := null;
   end if;
 
-  if length <= 1 then
+  if isempty then
     delete from keyval.lists where key = keyname;
   end if;
 
@@ -974,9 +974,42 @@ begin
 end;
 $$ language 'plpgsql';
 
-kvlrpush(keyname varchar, valuestring text) returns int
-kvlrpushnx(keyname varchar, valuestring text) returns boolean
-kvlrpushnxe(keyname varchar, valuestring text) returns void
+create or replace function kvlrpush(keyname varchar, valuestring text) returns int as $$
+declare
+  result int;
+begin
+  update keyval.lists set value = (value || valuestring), updated_at = now() where key = keyname returning array_length(value, 1) into result;
+  if not found then
+    insert into keyval.lists (key, value, created_at, updated_at) values (keyname, array[valuestring], now(), now());
+    result := 1;
+  end if;
+  return result;
+end;
+$$ language 'plpgsql';
+
+create or replace function kvlrpushnx(keyname varchar, valuestring text) returns boolean as $$
+declare
+  result boolean := true;
+begin
+  begin
+    insert into keyval.lists (key, value, created_at, updated_at) values (keyname, array[valuestring], now(), now());
+  exception when unique_violation then
+    update keyval.lists set value = (value || valuestring), updated_at = now() where key = keyname and not value @> array[valuestring];
+    if not found then
+      result := false;
+    end if;
+  end;
+  return result;
+end;
+$$ language 'plpgsql';
+
+create or replace function kvlrpushnxe(keyname varchar, valuestring text) returns void as $$
+begin
+  if not kvlrpushnx(keyname, valuestring) then
+    raise exception 'The valuestring provided already exists in the list at that keyname';
+  end if;
+end;
+$$ language 'plpgsql';
 
 kvlreml(keyname varchar, valuestring text) returns boolean
 kvlremle(keyname varchar, valuestring text) returns void

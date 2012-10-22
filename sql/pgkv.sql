@@ -858,16 +858,64 @@ $$ language 'plpgsql';
 -- Start List Functions
 -----------------------
 
-kvldel(keyname varchar) returns boolean
-kvldele(keyname varchar) returns void
+create or replace function kvldel(keyname varchar) returns boolean as $$
+declare
+  result boolean := true;
+begin
+  delete from keyval.lists where key = keyname;
+  if not found then
+    result := false;
+  end if;
+  return result;
+end;
+$$ language 'plpgsql';
 
-kvlindex(keyname varchar, valuestring text) returns int
-kvlinsert(keyname varchar, valuestring text, listindex int) returns void
-kvllen(keyname varchar) returns int
+create or replace function kvldele(keyname varchar) returns void as $$
+begin
+  if not kvldel(keyname) then
+    raise exception 'The keyname provided does not exist!';
+  end if;
+end;
+$$ language 'plpgsql';
 
-kvlget(keyname varchar, listindex int) returns text
-kvlgetall(keyname varchar) returns text
-kvlgetrange(keyname varchar, lowerindex int, upperindex int) returns table (index int, value text)
+create or replace function kvlindex(keyname varchar, valuestring text, out kvlindex int) as $$
+begin
+  with
+    list as (select unnest(value) from keyval.lists where key = keyname),
+    list_with_index as (select row_number() over (), unnest from list)
+    select row_number from list_with_index where unnest = valuestring limit 1 into kvlindex;
+end;
+$$ language 'plpgsql';
+
+create or replace function kvllen(keyname varchar) returns int as $$
+declare
+  result int;
+begin
+  select array_length(value, 1) from keyval.lists where key = keyname into result;
+  if not found then
+    result := 0;
+  end if;
+  return result;
+end;
+$$ language 'plpgsql';
+
+create or replace function kvlget(keyname varchar, listindex int, out kvlget text) as $$
+begin
+  select value[listindex] from keyval.lists where key = keyname into kvlget;
+end;
+$$ language 'plpgsql';
+
+create or replace function kvlgetall(keyname varchar) returns table(value text) as $$
+begin
+    return query select unnest(lists.value) from keyval.lists where key = keyname;
+end;
+$$ language 'plpgsql';
+
+create or replace function kvlgetrange(keyname varchar, lowerindex int, upperindex int) returns table(value text) as $$
+begin
+  return query select unnest(lists.value[lowerindex : upperindex]) from keyval.lists where key = keyname;
+end;
+$$ language 'plpgsql';
 
 -- KVLLPOP: Removes and returns the first string value from the list.
 --          If nothing is stored at the key, NULL is returned instead.
@@ -1193,8 +1241,38 @@ kvlreml(keyname varchar, valuestring text) returns boolean
 kvlremle(keyname varchar, valuestring text) returns void
 kvlremr(keyname varchar, valuestring text) returns boolean
 kvlremre(keyname varchar, valuestring text) returns void
-kvlremall(keyname varchar, valuestring text) returns boolean
+kvlremall(keyname varchar, valuestring text) returns int
 kvlremalle(keyname varchar, valuestring text) returns void
+
+create or replace function kvlset(keyname varchar, valuestrings text[]) returns void as $$
+begin
+  update keyval.lists set value = valuestrings, updated_at = now() where key = keyname;
+  if not found then
+    insert into keyval.lists (key, value, created_at, updated_at) values (keyname, valuestrings, now(), now());
+  end if;
+end;
+$$ language 'plpgsql';
+
+create or replace function kvlsetnx(keyname varchar, valuestrings text[]) returns boolean as $$
+declare
+  result boolean := true;
+begin
+  begin
+    insert into keyval.lists (key, value, created_at, updated_at) values (keyname, valuestrings, now(), now());
+  exception when unique_violation then
+    result := false;
+  end;
+  return result;
+end;
+$$ language 'plpgsql';
+
+create or replace function kvlsetnxe(keyname varchar, valuestrings text[]) returns void $$
+begin
+  if not kvlsetnx(keyname, valuestrings) then
+    raise exception 'The keyname provided already exists!';
+  end if;
+end;
+$$ language 'plpgsql';
 
 -----------------------
 -- Start Hash Functions

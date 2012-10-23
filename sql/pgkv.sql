@@ -1237,12 +1237,30 @@ begin
 end;
 $$ language 'plpgsql';
 
-kvlreml(keyname varchar, valuestring text) returns boolean
-kvlremle(keyname varchar, valuestring text) returns void
-kvlremr(keyname varchar, valuestring text) returns boolean
-kvlremre(keyname varchar, valuestring text) returns void
-kvlremall(keyname varchar, valuestring text) returns int
-kvlremalle(keyname varchar, valuestring text) returns void
+create or replace function kvlrem(keyname varchar, valuestrings text[]) returns void as $$
+declare
+  oldvalue text[];
+  newvalue text[];
+begin
+  select value from keyval.lists where key = keyname into oldvalue;
+  with list as (select unnest(oldvalue) except select unnest(valuestrings))
+    select array_agg(unnest) from list into newvalue;
+
+  if array_length(newvalue, 1) is null then
+    delete from keyval.lists where key = keyname;
+  else
+    update keyval.lists set value = newvalue, updated_at = now() where key = keyname;
+  end if;
+end;
+$$ language 'plpgsql';
+
+create or replace function kvlreme(keyname varchar, valuestrings text[]) returns void as $$
+begin
+  if not kvlrem(keyname, valuestring) then
+    raise exception 'The keyname or value provided does not exist!';
+  end if;
+end;
+$$ language 'plpgsql'
 
 create or replace function kvlset(keyname varchar, valuestrings text[]) returns void as $$
 begin

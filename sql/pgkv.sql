@@ -125,7 +125,7 @@ $$ language 'plpgsql';
 create or replace function kvdele(keyname varchar) returns void as $$
 begin
   if not kvdel(keyname) then
-    raise exception 'The keyname provided does not exist!';
+    raise exception 'The keyname provided does not exist!' using errcode = 'no_data_found';
   end if;
 end;
 $$ language 'plpgsql';
@@ -271,7 +271,7 @@ begin
       i := i + 1;
     end loop;
   else
-    raise exception 'The size of the "keynames" and "valuestrings" arguments must match!';
+    raise exception 'The size of the "keynames" and "valuestrings" arguments must match!' using errcode = 'array_subscript_error';
   end if;
 end;
 $$ language 'plpgsql';
@@ -316,7 +316,7 @@ begin
       end loop;
     end if;
   else
-    raise exception 'The size of the "keynames" and "valuestrings" arguments must match!';
+    raise exception 'The size of the "keynames" and "valuestrings" arguments must match!' using errcode = 'array_subscript_error';
   end if;
   return result;
 end;
@@ -343,7 +343,7 @@ $$ language 'plpgsql';
 create or replace function kvmsetnxe(keynames varchar[], valuestrings text[]) returns void as $$
 begin
   if not kvmsetnx(keynames, valuestrings) then
-    raise exception 'One or more of the keynames provided already exist!';
+    raise exception 'One or more of the keynames provided already exist!' using errcode = 'unique_violation';
   end if;
 end;
 $$ language 'plpgsql';
@@ -420,7 +420,7 @@ $$ language 'plpgsql';
 create or replace function kvsetnxe(keyname varchar, valuestring text) returns void as $$
 begin
   if not kvsetnx(keyname, valuestring) then
-    raise exception 'The keyname provided already exists!';
+    raise exception 'The keyname provided already exists!' using errcode = 'unique_violation';
   end if;
 end;
 $$ language 'plpgsql';
@@ -478,7 +478,7 @@ $$ language 'plpgsql';
 create or replace function kvndele(keyname varchar) returns void as $$
 begin
   if not kvndel(keyname) then
-    raise exception 'The keyname provided does not exist!';
+    raise exception 'The keyname provided does not exist!' using errcode = 'no_data_found';
   end if;
 end;
 $$ language 'plpgsql';
@@ -699,7 +699,7 @@ begin
       i := i + 1;
     end loop;
   else
-    raise exception 'The size of the "keynames" and "valuenumbers" arguments must match!';
+    raise exception 'The size of the "keynames" and "valuenumbers" arguments must match!' using errcode = 'array_subscript_error';
   end if;
 end;
 $$ language 'plpgsql';
@@ -745,7 +745,7 @@ begin
       end loop;
     end if;
   else
-    raise exception 'The size of the "keynames" and "valuenumbers" arguments must match!';
+    raise exception 'The size of the "keynames" and "valuenumbers" arguments must match!' using errcode = 'array_subscript_error';
   end if;
   return result;
 end;
@@ -772,7 +772,7 @@ $$ language 'plpgsql';
 create or replace function kvnmsetnxe(keynames varchar[], valuenumbers int[]) returns void as $$
 begin
   if not kvnmsetnx(keynames, valuenumbers) then
-    raise exception 'One or more of the keynames provided already exist!';
+    raise exception 'One or more of the keynames provided already exist!' using errcode = 'no_data_found';
   end if;
 end;
 $$ language 'plpgsql';
@@ -849,7 +849,7 @@ $$ language 'plpgsql';
 create or replace function kvnsetnxe(keyname varchar, valuenumber int) returns void as $$
 begin
   if not kvnsetnx(keyname, valuenumber) then
-    raise exception 'The keyname provided already exists!';
+    raise exception 'The keyname provided already exists!' using errcode = 'unique_violation';
   end if;
 end;
 $$ language 'plpgsql';
@@ -903,13 +903,13 @@ $$ language 'plpgsql';
 -- EXAMPLE 2:
 --  select * from kvldel('nonexistent');
 --  ERROR:  The keyname provided does not exist!
-create or replace function kvldele(keyname varchar) returns void as $$¬
-begin¬
-  if not kvldel(keyname) then¬
-    raise exception 'The keyname provided does not exist!' using errcode = 'no_data_found';¬
-  end if;¬
-end;¬
-$$ language 'plpgsql';¬
+create or replace function kvldele(keyname varchar) returns void as $$
+begin
+  if not kvldel(keyname) then
+    raise exception 'The keyname provided does not exist!' using errcode = 'no_data_found';
+  end if;
+end;
+$$ language 'plpgsql';
 
 -- KVLINDEX: When given a valuestring, the index first element found at the specified list is returned.
 --           If the specified list does not have the valuestring, NULL is returned instead.
@@ -1119,7 +1119,7 @@ declare
 begin
   select kvllpop(keyname) into result;
   if result is null then
-    raise exception 'The keyname provided does not exist!';
+    raise exception 'The keyname provided does not exist!' using errcode = 'no_data_found';
   end if;
   return result;
 end;
@@ -1213,7 +1213,7 @@ $$ language 'plpgsql';
 create or replace function kvllpushnxe(keyname varchar, valuestring text) returns void as $$
 begin
   if not kvllpushnx(keyname, valuestring) then
-    raise exception 'The valuestring provided already exists in the list at that keyname';
+    raise exception 'The valuestring provided already exists in the list at that keyname!' using errcode = 'unique_violation';
   end if;
 end;
 $$ language 'plpgsql';
@@ -1279,7 +1279,7 @@ declare
 begin
   select kvlrpop(keyname) into result;
   if result is null then
-    raise exception 'The keyname provided does not exist!';
+    raise exception 'The keyname provided does not exist!' using errcode = 'no_data_found';
   end if;
   return result;
 end;
@@ -1373,7 +1373,7 @@ $$ language 'plpgsql';
 create or replace function kvlrpushnxe(keyname varchar, valuestring text) returns void as $$
 begin
   if not kvlrpushnx(keyname, valuestring) then
-    raise exception 'The valuestring provided already exists in the list at that keyname';
+    raise exception 'The valuestring provided already exists in the list at that keyname' using errcode = 'unique_violation';
   end if;
 end;
 $$ language 'plpgsql';
@@ -1480,7 +1480,7 @@ $$ language 'plpgsql';
 create or replace function kvlsetnxe(keyname varchar, valuestrings text[]) returns void $$
 begin
   if not kvlsetnx(keyname, valuestrings) then
-    raise exception 'The keyname provided already exists!';
+    raise exception 'The keyname provided already exists!' using errcode = 'unique_violation';
   end if;
 end;
 $$ language 'plpgsql';
@@ -1547,7 +1547,7 @@ $$ language 'plpgsql';
 create or replace function kvhdele(keyname varchar, fieldname text) returns void as $$
 begin
   if not kvhdel(keyname) then
-    raise exception 'The keyname or fieldname provided does not exist!';
+    raise exception 'The keyname or fieldname provided does not exist!' using errcode = 'no_data_found';
   end if;
 end;
 $$ language 'plpgsql';
@@ -1601,7 +1601,7 @@ $$ language 'plpgsql';
 create or replace function kvhdelalle(keyname varchar) returns void as $$
 begin
   if not kvhdelall(keyname) then
-    raise exception 'The keyname provided does not exist!';
+    raise exception 'The keyname provided does not exist!' using errcode = 'no_data_found';
   end if;
 end;
 $$ language 'plpgsql';
@@ -1656,7 +1656,7 @@ $$ language 'plpgsql';
 create or replace function kvhexistse(keyname varchar, fieldname text) returns void as $$
 begin
   if not kvhexists(keyname, fieldname) then
-    raise exception 'The keyname or fieldname provided does not exist!';
+    raise exception 'The keyname or fieldname provided does not exist!' using errcode = 'no_data_found';
   end if;
 end;
 $$ language 'plpgsql';
@@ -1824,7 +1824,7 @@ begin
       insert into keyval.hashes (key, value, created_at, updated_at) values (keyname, hstore(fieldnames, valuestrings), now(), now());
     end if;
   exception when array_subscript_error then
-    raise exception 'The size of the "fieldnames" and "valuestrings" arguments must match!';
+    raise exception 'The size of the "fieldnames" and "valuestrings" arguments must match!' using errcode = 'array_subscript_error';
   end;
 end;
 $$ language 'plpgsql';
@@ -1869,7 +1869,7 @@ begin
       end if;
     end if;
   exception when array_subscript_error then
-    raise exception 'The size of the "fieldnames" and "valuestrings" arguments must match!';
+    raise exception 'The size of the "fieldnames" and "valuestrings" arguments must match!' using errcode = 'array_subscript_error';
   end;
   return result;
 end;
@@ -1898,7 +1898,7 @@ $$ language 'plpgsql';
 create or replace function kvhmsetnxe(keyname varchar, fieldnames text[], valuestrings text[]) returns void as $$
 begin
   if not kvhmsetnx(keyname, fieldnames, valuestrings) then
-    raise exception 'One or more or fieldnames provided already exist at that keyname!';
+    raise exception 'One or more or fieldnames provided already exist at that keyname!' using errcode = 'unique_violation';
   end if;
 end;
 $$ language 'plpgsql';
@@ -1926,7 +1926,7 @@ begin
       insert into keyval.hashes (key, value, created_at, updated_at) values (keyname, hstore(fieldnames, valuestrings), now(), now());
     end if;
   exception when array_subscript_error then
-    raise exception 'The size of the "fieldnames" and "valuestrings" arguments must match!';
+    raise exception 'The size of the "fieldnames" and "valuestrings" arguments must match!' using errcode = 'array_subscript_error';
   end;
 end;
 $$ language 'plpgsql';
@@ -1987,7 +1987,7 @@ $$ language 'plpgsql';
 create or replace function kvhreplacenxe(keyname varchar, fieldnames text[], valuestrings text[]) returns void as $$
 begin
   if not kvhreplacenx(keyname, fieldnames, valuestrings) then
-    raise exception 'The keyname provided already exists!';
+    raise exception 'The keyname provided already exists!' using errcode = 'unique_violation';
   end if;
 end;
 $$ language 'plpgsql';
@@ -2068,7 +2068,7 @@ $$ language 'plpgsql';
 create or replace function kvhsetnxe(keyname varchar, fieldname text, valuestring text) returns void as $$
 begin
   if not kvhsetnx(keyname, fieldname, valuestring) then
-    raise exception 'The fieldname provided already exists at that keyname!';
+    raise exception 'The fieldname provided already exists at that keyname!' using errcode = 'unique_violation';
   end if;
 end;
 $$ language 'plpgsql';

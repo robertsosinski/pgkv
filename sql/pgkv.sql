@@ -858,6 +858,23 @@ $$ language 'plpgsql';
 -- Start List Functions
 -----------------------
 
+-- KVLDEL: Deletes the entire list held by the key and returns TRUE.
+--         If the key does not exist, FALSE is returned instead.
+--  ARG1: keyname varchar
+--  RTRN: boolean
+--
+-- EXAMPLE 1:
+--  select * from kvldel('abc');
+--   kvldel
+--  --------
+--   t
+--  (1 row)
+--
+-- EXAMPLE 2:
+-- select * from kvldel('nonexistent');
+--   kvldel
+--  --------
+--   f
 create or replace function kvldel(keyname varchar) returns boolean as $$
 declare
   result boolean := true;
@@ -870,14 +887,54 @@ begin
 end;
 $$ language 'plpgsql';
 
-create or replace function kvldele(keyname varchar) returns void as $$
-begin
-  if not kvldel(keyname) then
-    raise exception 'The keyname provided does not exist!';
-  end if;
-end;
-$$ language 'plpgsql';
 
+-- KVLDEL: Deletes the entire list held by the key.
+--         If the key does not exist, an error is raised instead.
+--  ARG1: keyname varchar
+--  RTRN: boolean
+--
+-- EXAMPLE 1:
+--  select * from kvldel('abc');
+--   kvldel
+--  --------
+--
+--  (1 row)
+--
+-- EXAMPLE 2:
+--  select * from kvldel('nonexistent');
+--  ERROR:  The keyname provided does not exist!
+create or replace function kvldele(keyname varchar) returns void as $$¬
+begin¬
+  if not kvldel(keyname) then¬
+    raise exception 'The keyname provided does not exist!' using errcode = 'no_data_found';¬
+  end if;¬
+end;¬
+$$ language 'plpgsql';¬
+
+-- KVLINDEX: When given a valuestring, the index first element found at the specified list is returned.
+--           If the specified list does not have the valuestring, NULL is returned instead.
+--           If there is no list stored at the key, NULL is also returned instead.
+--
+-- EXAMPLE 1:
+--  select * from kvlindex('greeting', 'world');
+--   kvlindex
+--  ----------
+--          2
+--  (1 row)
+--
+-- EXAMPLE 2:
+--  select * from kvlindex('greeting', 'banana');
+--   kvlindex
+--  ----------
+--
+--  (1 row)
+--
+-- EXAMPLE 3:
+--  select * from kvlindex('nonexistent', 'nonexistent');
+--   kvlindex
+--  ----------
+--
+--  (1 row)
 create or replace function kvlindex(keyname varchar, valuestring text, out kvlindex int) as $$
 begin
   with
@@ -887,30 +944,114 @@ begin
 end;
 $$ language 'plpgsql';
 
+-- KVLLEN: Returns the length of the list value of the key.
+--         If no value was previously stored, NULL is returned instead.
+--  ARG1: keyname varchar
+--  RTRN: int
+--
+-- EXAMPLE 1:
+--  select * from kvllen('tripple');
+--   kvllen
+--  --------
+--        3
+--  (1 row)
+--
+-- EXAMPLE 2:
+--  select * from kvllen('nonexistent');
+--   kvllen
+--  --------
+--
+--  (1 row)
 create or replace function kvllen(keyname varchar) returns int as $$
 declare
   result int;
 begin
   select array_length(value, 1) from keyval.lists where key = keyname into result;
   if not found then
-    result := 0;
+    result := null;
   end if;
   return result;
 end;
 $$ language 'plpgsql';
 
+-- KVLGET: Returns the string value stored in the list index at the key specified.
+--         If no value was found at the list or they key, NULL is returned instead.
+--  ARG1: keyname varchar
+--  ARG2: listindex int
+--  RTRN: int
+--
+-- EXAMPLE 1:
+--  select * from kvlget('fruits', 2);
+--   kvlget
+--  --------
+--   banana
+--  (1 row)
+--
+-- EXAMPLE 2:
+--  select * from kvlget('fruits', 999);
+--   kvlget
+--  --------
+--
+--  (1 row)
+--
+-- EXAMPLE 3:
+--  select * from kvllen('nonexistent', 1);
+--   kvllen
+--  --------
+--
+--  (1 row)
 create or replace function kvlget(keyname varchar, listindex int, out kvlget text) as $$
 begin
   select value[listindex] from keyval.lists where key = keyname into kvlget;
 end;
 $$ language 'plpgsql';
 
+-- KVLGETALL: Returns all values within the list.
+--            If no list is stored at the key specified, an empty list is returned instead.
+--  ARG1: keyname varchar
+--  RTRN: table(value text)
+--
+-- EXAMPLE 1:
+--  select * from kvlgetall('fruits');
+--   kvlgetall
+--  -----------
+--   apple
+--   banana
+--   cherry
+--   date
+--  (4 rows)
+--
+-- EXAMPLE 2:
+--  select * from kvlgetall('nonexistent');
+--   kvlgetall
+--  -----------
+--  (0 rows)
 create or replace function kvlgetall(keyname varchar) returns table(value text) as $$
 begin
     return query select unnest(lists.value) from keyval.lists where key = keyname;
 end;
 $$ language 'plpgsql';
 
+-- KVLGETRANGE: Returns all values within a list between the lower and upper index.
+--              If no list is stored at the key specified, an empty list is returned instead.
+--  ARG1: keyname varchar
+--  ARG2: lowerindex int
+--  ARG3: upper int
+--  RTRN: table(value text)
+--
+-- EXAMPLE 1:
+--  select * from getrange('fruits', 2, 3);
+--   getrange
+--  ----------
+--   banana
+--   cherry
+--  (2 rows)
+--
+-- EXAMPLE 2:
+--  select * from getrange('nonexistent', 1, 99);
+--   getrange
+--  ----------
+--  (0 rows)
 create or replace function kvlgetrange(keyname varchar, lowerindex int, upperindex int) returns table(value text) as $$
 begin
   return query select unnest(lists.value[lowerindex : upperindex]) from keyval.lists where key = keyname;
@@ -1237,6 +1378,17 @@ begin
 end;
 $$ language 'plpgsql';
 
+-- KVLREM: Remove all the specified value strings from the list stored at the key.
+--   ARG1: keyname varchar
+--   ARG3: valuestrings text[]
+--   RTRN: void
+--
+-- EXAMPLE 1:
+--  select * from kvlrem('fruits', array['banana', 'date']);
+--   kvlrem
+--  --------
+--
+--  (1 row)
 create or replace function kvlrem(keyname varchar, valuestrings text[]) returns void as $$
 declare
   oldvalue text[];
@@ -1254,14 +1406,18 @@ begin
 end;
 $$ language 'plpgsql';
 
-create or replace function kvlreme(keyname varchar, valuestrings text[]) returns void as $$
-begin
-  if not kvlrem(keyname, valuestring) then
-    raise exception 'The keyname or value provided does not exist!';
-  end if;
-end;
-$$ language 'plpgsql'
-
+-- KVLSET: Sets the key to hold a list of strings.
+--         If key already holds a list, it is overwritten instead.
+--  ARG1: keyname varchar
+--  ARG2: valuestrings text[]
+--  RTRN: void
+--
+-- EXAMPLE 1:
+--  select * from kvlset('fruits', array['apple', 'banana', 'cherry', 'date']);
+--   kvlset
+--  --------
+--
+--  (1 row)
 create or replace function kvlset(keyname varchar, valuestrings text[]) returns void as $$
 begin
   update keyval.lists set value = valuestrings, updated_at = now() where key = keyname;
@@ -1271,6 +1427,25 @@ begin
 end;
 $$ language 'plpgsql';
 
+-- KVLSETNX: Sets the key to hold a list of strings, if the key does not exist, and returns TRUE.
+--           If the key already has a list set, no change is made and FALSE is returned instead.
+--  ARG1: keyname varchar
+--  ARG2: valuestrings text[]
+--  RTRN: boolean
+--
+-- EXAMPLE 1:
+--  select * from kvlsetnx('fruits', array['apple', 'banana', 'cherry', 'date']);
+--   kvlsetnx
+--  ----------
+--   t
+--  (1 row)
+--
+-- EXAMPLE 2:
+--  select * from kvlsetnx('fruits', array['eggplant', 'fraise', 'grape', 'habenero']);
+--   kvlsetnx
+--  ----------
+--   f
+--  (1 row)
 create or replace function kvlsetnx(keyname varchar, valuestrings text[]) returns boolean as $$
 declare
   result boolean := true;
@@ -1284,6 +1459,24 @@ begin
 end;
 $$ language 'plpgsql';
 
+-- KVLSETNXE: Sets the key to hold a list of strings, if the key does not exist.
+--            If the key already has a list set, no change is made and an error is raised instead.
+--  ARG1: keyname varchar
+--  ARG2: valuestrings text[]
+--  RTRN: void
+--
+-- EXAMPLE 1:
+--  select * from kvlsetnxe('fruits', array['apple', 'banana', 'cherry', 'date']);
+--   kvlsetnxe
+--  -----------
+--
+--  (1 row)
+--
+-- EXAMPLE 2:
+--  select * from kvlsetnxe('fruits', array['eggplant', 'fraise', 'grape', 'habenero']);
+--   kvlsetnxe
+--  -----------
+--  ERROR:  The keyname provided already exists!
 create or replace function kvlsetnxe(keyname varchar, valuestrings text[]) returns void $$
 begin
   if not kvlsetnx(keyname, valuestrings) then

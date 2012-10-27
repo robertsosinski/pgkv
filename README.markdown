@@ -1,12 +1,12 @@
 Introduction
 ============
 
-PGKV is a set of functions which allow postgres to handle atomic operations in a similar fashon to Redis.  At the moment, PGKV supports strings, numbers, lists and hashes as data types, each of which is stored in a seperate keyspace.  All keyspaces are held in the `keyval` schema.
+PGKV is a set of functions that allow Postgres to handle atomic operations in a similar fashon to Redis.  At the moment, PGKV supports strings, numbers, lists and hashes as data types, each of which is stored in a seperate keyspace.  All keyspaces are held in the `keyval` schema.
 
 Installation
 ------------
 
-The best way to install PGKV is to import the `pgkv.sql` file into the chosen database.  From there, you can use interact with the keyspaces using the functions found in the `pgkv.sql` file.
+The best way to install PGKV is to import the `pgkv.sql` file into the chosen database.  From there, you can interact with the keyspaces using the functions found in the `pgkv.sql` file.
 
 Using PGKV
 ----------
@@ -38,7 +38,7 @@ If you wish to only set the key if it does not yet exist, you can use the `kvset
 
 As the key has already been set, `false` is returned. However, if the key was not set, `true` would have been returned instead.
 
-With PGKV, you can also perform list operations as well, such as pushing new values onto the left side of the list with `kvllpush`.
+With PGKV, you can also perform list operations, such as pushing new values onto the left side of a list with `kvllpush`.
 
     select * from kvllpush('abc', 'one');
      kvllpush
@@ -74,9 +74,9 @@ At this moment, the best way to learn about the 70 different functions in PGKV i
 Notes
 -----
 
-I started making these functions in order to get better PL/pgSQL and to get better at making SQL that will works concurrently and prevents race conditions.  I would not recommend using these functions directly in production, but feel free to use them for insperation on solving similar problems you might have.
+I started making these functions in order to get better PL/pgSQL and at making SQL that works concurrently while preventing race conditions.  I would not recommend using these functions directly in production, but feel free to use them for insperation on solving similar problems you might have.
 
-Also, if you want to use these functions to mimic a non-durable datastore due to speed being more important then the data saved, feel free to modify the table definitions to be unlogged.  You can learn more about that [here]:(http://wiki.postgresql.org/wiki/What's_new_in_PostgreSQL_9.1#Unlogged_Tables).
+Also, if you want to use these functions to mimic a non-durable datastore due to speed being more important then the data saved, feel free to modify the table definitions to be unlogged.  You can learn more about that [here](http://wiki.postgresql.org/wiki/What's_new_in_PostgreSQL_9.1#Unlogged_Tables).
 
 Credits
 -------
